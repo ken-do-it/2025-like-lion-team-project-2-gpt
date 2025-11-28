@@ -1,0 +1,16 @@
+services:
+  backend:
+    build:
+      context: ./team_2_music_back
+      dockerfile: Dockerfile
+    container_name: music-backend
+    ports:
+      - "8001:8001"
+    env_file:
+      - ./team_2_music_back/.env
+    volumes:
+      - ./team_2_music_back/storage:/app/storage
+    # 개발용 커맨드 예시(참고): uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+    command: >
+      uvicorn main:app --host 0.0.0.0 --port 8001
+    restart: unless-stopped

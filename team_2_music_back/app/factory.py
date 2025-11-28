@@ -5,11 +5,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .api.routes import router as api_router
 from .core.config import settings
 from .core.errors import register_error_handlers
 from .core.jwt import JWKSClient
+from app.db import base  # noqa: F401  # ensure models are imported for SQLAlchemy mappings
 
 
 @asynccontextmanager
@@ -43,6 +45,13 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+    )
+
+    # Serve local uploads (only for dev/local)
+    application.mount(
+        "/uploads",
+        StaticFiles(directory=settings.local_storage_path, check_dir=False),
+        name="uploads",
     )
 
     register_error_handlers(application)

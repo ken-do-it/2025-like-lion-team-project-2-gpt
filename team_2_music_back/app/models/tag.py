@@ -27,5 +27,5 @@ class TrackTag(Base):
     track_id = Column(Integer, ForeignKey("tracks.id"), nullable=False)
     tag_id = Column(Integer, ForeignKey("tags.id"), nullable=False)
 
-    track = relationship("Track", back_populates="tags")
+    track = relationship("Track", back_populates="tag_links")
     tag = relationship("Tag", back_populates="track_links")

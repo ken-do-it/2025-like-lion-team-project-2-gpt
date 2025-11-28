@@ -15,6 +15,12 @@
 - Added auth settings: JWKS audience + allow_header_auth flag; README section on JWT setup.
 - Added service layer for tracks/uploads (`app/services/tracks.py`) and in-memory pytest skeleton; README updated with test command.
 - Added local direct upload endpoint (`POST /api/tracks/upload/direct` with multipart file) storing under local storage path; config includes `MUSIC_LOCAL_STORAGE_PATH` (default `storage`).
+- Mounted `/uploads` static serving for local files; direct upload validates size (50MB) and allowed audio MIME types.
+- Added error responses to OpenAPI for track/upload routes and validation tests for uploads (size/type).
+- README updated with file serving/upload validation notes.
+- Track list endpoint now supports pagination params `limit` (max 100) and `offset`.
+- Added interactions: like/unlike/count and comments create/list for tracks (`/api/interactions/...`). Schemas/services added.
+- TrackRead now includes `audio_url`; frontend Upload page shows local uploaded list with audio player using stream endpoint.
 
 ## How to run locally
 - cd team_2_music_back
@@ -33,3 +39,14 @@
 - Flesh out schemas/validation and error responses (TRACK_NOT_FOUND, UPLOAD_NOT_FOUND, etc.).
 - Add service layer/tests and README instructions for migrations and env variables.
 - Prepare DB switch to PostgreSQL by updating MUSIC_DATABASE_URL when ready.
+Updated
+models
+to
+avoid
+name
+collision
+causing
+tags
+list
+in
+response.

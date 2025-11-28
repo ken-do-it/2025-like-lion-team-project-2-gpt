@@ -19,9 +19,13 @@ class TrackService:
     def __init__(self, db: Session, storage: StorageService) -> None:
         self.db = db
         self.storage = storage
+        self.max_file_size = 50 * 1024 * 1024  # 50MB for local dev
+        self.allowed_content_types = {"audio/mpeg", "audio/mp3", "audio/wav", "audio/flac"}
 
-    def list_tracks(self, limit: int = 50) -> list[Track]:
-        return self.db.query(Track).limit(limit).all()
+    def list_tracks(self, limit: int = 50, offset: int = 0) -> list[Track]:
+        limit = min(max(limit, 1), 100)
+        offset = max(offset, 0)
+        return self.db.query(Track).offset(offset).limit(limit).all()
 
     def get_track(self, track_id: int) -> Track:
         track = self.db.get(Track, track_id)
@@ -29,12 +33,27 @@ class TrackService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="TRACK_NOT_FOUND")
         return track
 
-    def create_track(self, *, title: str, description: str | None, cover_url: str | None, owner_user_id: int) -> Track:
+    def create_track(
+        self,
+        *,
+        title: str,
+        description: str | None,
+        cover_url: str | None,
+        genre: str | None,
+        tags: str | None,
+        ai_provider: str | None,
+        ai_model: str | None,
+        owner_user_id: int,
+    ) -> Track:
         track = Track(
             title=title,
             description=description,
             cover_url=cover_url,
             status="ready",
+            genre=genre,
+            tags=tags,
+            ai_provider=ai_provider,
+            ai_model=ai_model,
             owner_user_id=owner_user_id,
         )
         self.db.add(track)
@@ -49,11 +68,21 @@ class TrackService:
         title: str,
         description: str | None,
         cover_url: str | None,
+        genre: str | None = None,
+        tags: str | None = None,
+        ai_provider: str | None = None,
+        ai_model: str | None = None,
         owner_user_id: int,
     ) -> Track:
         upload_id = uuid4().hex
         storage_key = f"uploads/{owner_user_id}/{upload_id}/{file.filename}"
         file_bytes = file.file.read()
+
+        if len(file_bytes) > self.max_file_size:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="FILE_TOO_LARGE")
+        if file.content_type and file.content_type not in self.allowed_content_types:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="UNSUPPORTED_MEDIA_TYPE")
+
         self.storage.save_file(storage_key=storage_key, file_bytes=file_bytes)
 
         track = Track(
@@ -61,6 +90,10 @@ class TrackService:
             description=description,
             cover_url=cover_url,
             status="ready",
+            genre=genre,
+            tags=tags,
+            ai_provider=ai_provider,
+            ai_model=ai_model,
             owner_user_id=owner_user_id,
             audio_url=storage_key,
         )
@@ -129,3 +162,89 @@ class TrackService:
             UploadSession.expires_at < now,
         ).delete(synchronize_session=False)
         self.db.commit()
+
+    def update_track(
+        self,
+        track_id: int,
+        owner_user_id: int,
+        *,
+        title: str | None,
+        description: str | None,
+        cover_url: str | None,
+        genre: str | None,
+        tags: str | None,
+        ai_provider: str | None,
+        ai_model: str | None,
+    ) -> Track:
+        track = self.get_track(track_id)
+        if track.owner_user_id != owner_user_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="FORBIDDEN")
+
+        if title is not None:
+            track.title = title
+        if description is not None:
+            track.description = description
+        if cover_url is not None:
+            track.cover_url = cover_url
+        if genre is not None:
+            track.genre = genre
+        if tags is not None:
+            track.tags = tags
+        if ai_provider is not None:
+            track.ai_provider = ai_provider
+        if ai_model is not None:
+            track.ai_model = ai_model
+
+        self.db.commit()
+        self.db.refresh(track)
+        return track
+
+    def delete_track(self, track_id: int, owner_user_id: int) -> None:
+        track = self.get_track(track_id)
+        if track.owner_user_id != owner_user_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="FORBIDDEN")
+
+        # Delete local file if exists
+        if track.audio_url:
+            from pathlib import Path
+
+            file_path = self.storage.base_path / track.audio_url
+            try:
+                if file_path.exists():
+                    file_path.unlink()
+            except Exception:
+                pass
+
+        self.db.delete(track)
+        self.db.commit()
+
+    def replace_audio(self, track_id: int, owner_user_id: int, file: UploadFile) -> Track:
+        track = self.get_track(track_id)
+        if track.owner_user_id != owner_user_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="FORBIDDEN")
+
+        file_bytes = file.file.read()
+        if len(file_bytes) > self.max_file_size:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="FILE_TOO_LARGE")
+        if file.content_type and file.content_type not in self.allowed_content_types:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="UNSUPPORTED_MEDIA_TYPE")
+
+        upload_id = uuid4().hex
+        storage_key = f"uploads/{owner_user_id}/{upload_id}/{file.filename}"
+        self.storage.save_file(storage_key=storage_key, file_bytes=file_bytes)
+
+        if track.audio_url:
+            from pathlib import Path
+
+            old_path = self.storage.base_path / track.audio_url
+            try:
+                if old_path.exists():
+                    old_path.unlink()
+            except Exception:
+                pass
+
+        track.audio_url = storage_key
+        track.status = "ready"
+        self.db.commit()
+        self.db.refresh(track)
+        return track

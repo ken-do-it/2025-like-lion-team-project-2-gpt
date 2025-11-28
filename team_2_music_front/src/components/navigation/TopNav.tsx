@@ -4,6 +4,7 @@ const links = [
   { href: "/", label: "탐색" },
   { href: "/upload", label: "업로드" },
   { href: "/library", label: "내 라이브러리" },
+  { href: "/profile", label: "프로필" },
 ];
 
 function TopNav() {

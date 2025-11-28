@@ -53,3 +53,7 @@ team_2_music_front/
 - Backend tests (in-memory SQLite):
   - cd team_2_music_back && python -m pytest -q
 - Service layer introduced for tracks/uploads: see pp/services/tracks.py; API routes delegate to services.
+## File serving / uploads (local)
+- Static mount: /uploads serves files from MUSIC_LOCAL_STORAGE_PATH (default storage).
+- Direct upload endpoint: POST /api/tracks/upload/direct (multipart: file, title, optional description/cover_url).
+- Validation: max size 50MB, allowed types: audio/mpeg, audio/mp3, audio/wav, audio/flac. Errors: FILE_TOO_LARGE, UNSUPPORTED_MEDIA_TYPE.

@@ -1,4 +1,5 @@
 import UploadForm from "../components/sections/UploadForm";
+import UploadedList from "../components/sections/UploadedList";
 
 function UploadPage() {
   return (
@@ -9,6 +10,10 @@ function UploadPage() {
         <p className="text-white/70">AI로 만든 음악 파일을 업로드하고 메타데이터를 채워보세요.</p>
       </header>
       <UploadForm />
+      <div className="space-y-3">
+        <h2 className="text-xl font-semibold">내 업로드 목록 (로컬)</h2>
+        <UploadedList />
+      </div>
     </div>
   );
 }
