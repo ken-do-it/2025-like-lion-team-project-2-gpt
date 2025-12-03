@@ -10,6 +10,9 @@ type TrackApi = {
   description?: string | null;
   audio_url?: string | null;
   created_at: string;
+  duration_seconds?: number | null;
+  plays_count?: number;
+  likes_count?: number;
 };
 
 const featuredPlaylists = [
