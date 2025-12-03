@@ -111,13 +111,13 @@ function LibraryPage() {
                         : "linear-gradient(135deg, #2d1b4b, #6b3fa0)",
                     }}
                   />
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
                         <Link to={`/tracks/${track.id}`} className="truncate text-lg font-semibold hover:text-primary">
                           {track.title}
                         </Link>
-                        <p className="text-xs text-white/60 mt-1">
+                        <p className="mt-1 text-xs text-white/60">
                           상태: {track.status} · 업로드: {new Date(track.created_at).toLocaleString()}
                         </p>
                         {track.description && (

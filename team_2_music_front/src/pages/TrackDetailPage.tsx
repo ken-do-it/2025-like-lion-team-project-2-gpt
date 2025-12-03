@@ -18,6 +18,14 @@ type TrackDetail = {
   ai_model?: string | null;
 };
 
+type Comment = {
+  id: number;
+  track_id: number;
+  user_id: number;
+  body: string;
+  created_at: string;
+};
+
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8001/api";
 
 function TrackDetailPage() {
@@ -34,6 +42,10 @@ function TrackDetailPage() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentBody, setCommentBody] = useState("");
+  const [commentError, setCommentError] = useState<string | null>(null);
 
   const fetchTrack = async (id: string) => {
     setLoading(true);
@@ -52,8 +64,21 @@ function TrackDetailPage() {
     }
   };
 
+  const fetchComments = async (id: string) => {
+    try {
+      const res = await apiClient.get<Comment[]>(`/interactions/tracks/${id}/comments`);
+      setComments(res.data);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? "댓글을 불러오지 못했습니다.";
+      setCommentError(msg);
+    }
+  };
+
   useEffect(() => {
-    if (trackId) fetchTrack(trackId);
+    if (trackId) {
+      fetchTrack(trackId);
+      fetchComments(trackId);
+    }
   }, [trackId]);
 
   const streamUrl = track?.audio_url ? `${apiBase}/tracks/${track.id}/stream` : null;
@@ -92,6 +117,21 @@ function TrackDetailPage() {
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? "삭제에 실패했습니다.";
       alert(msg);
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!trackId || !commentBody.trim()) return;
+    setCommentError(null);
+    try {
+      await apiClient.post(`/interactions/tracks/${trackId}/comments`, {
+        body: commentBody.trim(),
+      });
+      setCommentBody("");
+      fetchComments(trackId);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? "댓글 등록에 실패했습니다.";
+      setCommentError(msg);
     }
   };
 
@@ -168,15 +208,15 @@ function TrackDetailPage() {
           )}
         </section>
 
-        <section className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-3">
+        <section className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-6">
           <h2 className="text-xl font-semibold">AI 정보</h2>
           <p className="text-sm text-white/70">
             AI 제공자: {track.ai_provider ?? "미입력"} · 모델: {track.ai_model ?? "미입력"}
           </p>
         </section>
 
-        <section className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-3">
-          <h2 className="text-xl font-semibold">재생/공유</h2>
+        <section className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-6">
+          <h2 className="text-xl font-semibold">재생 / 공유</h2>
           {streamUrl ? (
             <div className="mt-2 break-all text-sm text-primary">
               <a href={streamUrl} target="_blank" rel="noreferrer" className="hover:underline">
@@ -188,8 +228,38 @@ function TrackDetailPage() {
           )}
         </section>
 
+        <section className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-6">
+          <h2 className="text-xl font-semibold">댓글</h2>
+          <div className="space-y-3">
+            {comments.length === 0 && <p className="text-sm text-white/60">댓글이 없습니다.</p>}
+            {comments.map((c) => (
+              <div key={c.id} className="rounded-lg bg-white/5 p-3">
+                <p className="text-sm text-white">{c.body}</p>
+                <p className="text-xs text-white/50 mt-1">{new Date(c.created_at).toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-2">
+            <textarea
+              className="w-full rounded-lg border border-white/20 bg-white/5 p-3 text-sm text-white placeholder:text-white/50 focus:border-primary focus:outline-none"
+              rows={3}
+              placeholder="댓글을 입력하세요"
+              value={commentBody}
+              onChange={(e) => setCommentBody(e.target.value)}
+            />
+            {commentError && <p className="text-sm text-red-400">{commentError}</p>}
+            <button
+              type="button"
+              onClick={handleAddComment}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow hover:bg-primary/90"
+            >
+              댓글 등록
+            </button>
+          </div>
+        </section>
+
         {editing && (
-          <section className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-3">
+          <section className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-6">
             <h2 className="text-xl font-semibold">수정</h2>
             <label className="grid gap-2">
               <span className="text-sm font-medium text-white">제목</span>

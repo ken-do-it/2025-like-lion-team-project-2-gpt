@@ -21,8 +21,10 @@ function TrackCard({ track }: TrackCardProps) {
         <p className="text-sm text-white/60">{track.artist}</p>
       </div>
       <div className="mt-3 flex items-center justify-between text-xs text-white/50">
-        <span>{track.duration}</span>
-        <span>{Intl.NumberFormat("ko-KR").format(track.plays)} plays</span>
+        <span>{track.duration ?? ""}</span>
+        <span>
+          {Intl.NumberFormat("ko-KR").format(track.plays ?? 0)} plays · {Intl.NumberFormat("ko-KR").format(track.likes ?? 0)} likes
+        </span>
       </div>
     </Link>
   );

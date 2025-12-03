@@ -25,12 +25,19 @@ class TrackService:
     def list_tracks(self, limit: int = 50, offset: int = 0) -> list[Track]:
         limit = min(max(limit, 1), 100)
         offset = max(offset, 0)
-        return self.db.query(Track).offset(offset).limit(limit).all()
+        tracks = self.db.query(Track).offset(offset).limit(limit).all()
+        # attach counts
+        for t in tracks:
+            t.likes_count = len(t.likes) if hasattr(t, "likes") else 0
+            t.plays_count = 0  # not tracked yet
+        return tracks
 
     def get_track(self, track_id: int) -> Track:
         track = self.db.get(Track, track_id)
         if not track:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="TRACK_NOT_FOUND")
+        track.likes_count = len(track.likes) if hasattr(track, "likes") else 0
+        track.plays_count = 0
         return track
 
     def create_track(

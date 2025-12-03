@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_current_user, get_db
@@ -203,21 +203,23 @@ def finalize_upload(
     responses={404: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 def stream_track(track_id: int, db: Session = Depends(get_db)) -> FileResponse:
-    """Stream track audio from local storage for development."""
+    """Stream track audio. If S3 사용 중이면 presigned URL로 리디렉션."""
 
     track = _service(db).get_track(track_id)
     if not track.audio_url:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AUDIO_NOT_FOUND")
 
+    # S3 사용 시 presigned GET으로 리디렉션
+    storage = StorageService()
+    if storage.is_s3_enabled:
+        presigned_url = storage.presign_get(track.audio_url)
+        return RedirectResponse(url=presigned_url, status_code=status.HTTP_302_FOUND)
+
     file_path = Path(settings.local_storage_path) / track.audio_url
     if not file_path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AUDIO_NOT_FOUND")
 
-    return FileResponse(
-        path=file_path,
-        media_type="audio/mpeg",
-        filename=file_path.name,
-    )
+    return FileResponse(path=file_path, media_type="audio/mpeg", filename=file_path.name)
 
 
 @router.post(

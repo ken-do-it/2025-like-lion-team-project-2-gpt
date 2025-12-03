@@ -13,6 +13,7 @@ class TrackBase(BaseModel):
     tags: str | None = Field(default=None, max_length=200)
     ai_provider: str | None = Field(default=None, max_length=50)
     ai_model: str | None = Field(default=None, max_length=100)
+    duration_seconds: int | None = Field(default=None, ge=0)
 
 
 class TrackCreate(TrackBase):
@@ -27,6 +28,7 @@ class TrackUpdate(BaseModel):
     tags: str | None = Field(default=None, max_length=200)
     ai_provider: str | None = Field(default=None, max_length=50)
     ai_model: str | None = Field(default=None, max_length=100)
+    duration_seconds: int | None = Field(default=None, ge=0)
 
 
 class TrackRead(TrackBase):
@@ -38,6 +40,9 @@ class TrackRead(TrackBase):
     tags: str | None = None
     ai_provider: str | None = None
     ai_model: str | None = None
+    duration_seconds: int | None = None
+    likes_count: int = 0
+    plays_count: int = 0
     created_at: datetime
 
     class Config:

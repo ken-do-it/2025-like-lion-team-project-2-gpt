@@ -13,7 +13,7 @@ function TopNav() {
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
         <div className="flex items-center gap-3">
           <span className="material-symbols-outlined text-primary text-3xl">music_note</span>
-          <p className="text-xl font-bold tracking-tight">AI Music</p>
+          <p className="text-xl font-bold tracking-tight">AI Music GPT</p>
         </div>
         <nav className="hidden gap-6 md:flex">
           {links.map((link) => (
