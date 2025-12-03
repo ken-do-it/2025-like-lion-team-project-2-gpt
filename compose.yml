@@ -10,7 +10,7 @@ services:
       - ./team_2_music_back/storage:/app/storage
     environment:
       # DB 연결: compose 내부 postgres 서비스를 기본값으로 사용
-      MUSIC_DATABASE_URL: postgresql://music_user:music_pass@db:5432/music_db
+      MUSIC_DATABASE_URL: postgresql+psycopg://music_user:music_pass@db:5432/music_db
       # S3 사용 시 필요한 값들(.env에서도 override 가능)
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
