@@ -1,12 +1,9 @@
 {
-  "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
     "composite": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "allowSyntheticDefaultImports": true,
-    "types": ["node"]
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowSyntheticDefaultImports": true
   },
-  "include": ["vite.config.ts", "tailwind.config.ts", "postcss.config.js"]
+  "include": ["vite.config.ts"]
 }
