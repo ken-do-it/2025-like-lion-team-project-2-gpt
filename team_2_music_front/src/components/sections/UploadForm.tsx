@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import apiClient from "@/lib/api/client";
+import apiClient from "../../lib/api/client";
 
 type Mode = "create" | "edit";
 

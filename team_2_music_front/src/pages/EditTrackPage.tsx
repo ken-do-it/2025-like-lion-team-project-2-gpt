@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import UploadForm from "../components/sections/UploadForm";
-import apiClient from "@/lib/api/client";
+import apiClient from "../lib/api/client";
 
 type TrackDetail = {
   id: number;

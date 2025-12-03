@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { usePlayer } from "../contexts/PlayerContext";
-import apiClient from "@/lib/api/client";
+import apiClient from "../lib/api/client";
 
 type ApiTrack = {
   id: number;
