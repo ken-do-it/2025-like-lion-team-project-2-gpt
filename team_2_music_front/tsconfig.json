@@ -4,7 +4,10 @@
     "lib": ["DOM", "DOM.Iterable", "ES2020"],
     "module": "ESNext",
     "moduleResolution": "Node",
-    "baseUrl": ".",
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["*"]
+    },
     "types": ["vite/client"],
     "jsx": "react-jsx",
     "allowSyntheticDefaultImports": true,

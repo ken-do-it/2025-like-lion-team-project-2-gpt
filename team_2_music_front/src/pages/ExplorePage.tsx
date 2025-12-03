@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import TrackCard from "../components/cards/TrackCard";
-import apiClient from "../lib/api/client";
+import apiClient from "@/lib/api/client";
 
 type TrackApi = {
   id: number;
