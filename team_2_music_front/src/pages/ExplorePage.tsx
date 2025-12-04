@@ -13,8 +13,11 @@ type TrackApi = {
   duration_seconds?: number | null;
   plays_count?: number;
   likes_count?: number;
+  genre?: string | null;
+  tags?: string | null;
 };
 
+// TODO: 향후 API로 대체
 const featuredPlaylists = [
   {
     id: 1,
@@ -40,6 +43,7 @@ function ExplorePage() {
   const [tracks, setTracks] = useState<TrackApi[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [keyword, setKeyword] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -58,6 +62,17 @@ function ExplorePage() {
     load();
   }, []);
 
+  const filtered = tracks.filter((t) => {
+    if (!keyword.trim()) return true;
+    const q = keyword.trim().toLowerCase();
+    return (
+      t.title.toLowerCase().includes(q) ||
+      (t.description ?? "").toLowerCase().includes(q) ||
+      (t.genre ?? "").toLowerCase().includes(q) ||
+      (t.tags ?? "").toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="space-y-12">
       <section
@@ -70,7 +85,7 @@ function ExplorePage() {
         <div className="max-w-2xl space-y-4">
           <p className="text-sm uppercase tracking-[0.3em] text-white/60">AI Collection</p>
           <h1 className="text-4xl font-black leading-tight tracking-tight">AI 음악의 세계를 탐험하세요</h1>
-          <p className="text-white/70">AI가 만든 새로운 음악을 발견하고, 듣고, 공유해보세요.</p>
+          <p className="text-white/70">AI가 만든 새로운 음악을 발견하고, 듣고, 공유해 보세요.</p>
           <div className="flex gap-4">
             <button className="rounded-full bg-primary px-6 py-2 font-semibold text-white">지금 듣기</button>
             <button className="rounded-full border border-white/40 px-6 py-2 font-semibold text-white">Trending</button>
@@ -81,22 +96,34 @@ function ExplorePage() {
       <section>
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold">오늘의 추천 트랙</h2>
-          <button className="text-sm text-white/70">전체 보기</button>
+          <div className="flex items-center gap-2">
+            <input
+              className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/50 focus:border-primary focus:outline-none"
+              placeholder="제목, 설명, 장르, 태그 검색"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+            />
+            <button className="text-sm text-white/70" onClick={() => setKeyword("")}>
+              초기화
+            </button>
+          </div>
         </div>
         {loading && <p className="text-sm text-white/70">불러오는 중...</p>}
         {error && <p className="text-sm text-red-400">{error}</p>}
-        {!loading && !error && tracks.length === 0 && <p className="text-sm text-white/60">등록된 트랙이 없습니다.</p>}
+        {!loading && !error && filtered.length === 0 && (
+          <p className="text-sm text-white/60">아직 등록된 트랙이 없습니다.</p>
+        )}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {tracks.map((track) => (
+          {filtered.map((track) => (
             <TrackCard
               key={track.id}
               track={{
                 id: track.id,
                 title: track.title,
                 artist: "Unknown Artist",
-                coverUrl:
-                  track.cover_url ??
-                  "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=600&q=60",
+                coverUrl: track.cover_url
+                  ? `${import.meta.env.VITE_API_BASE_URL ?? ""}/tracks/${track.id}/cover`
+                  : "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=600&q=60",
                 duration: track.duration_seconds
                   ? `${Math.floor(track.duration_seconds / 60)}:${String(track.duration_seconds % 60).padStart(2, "0")}`
                   : "",
@@ -110,7 +137,7 @@ function ExplorePage() {
 
       <section>
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold">분위기 / 태그 기반 추천</h2>
+          <h2 className="text-2xl font-bold">분위기 / 테마 플레이리스트</h2>
           <span className="text-sm text-white/60">AI Mood Lens</span>
         </div>
         <div className="grid gap-4 md:grid-cols-3">

@@ -20,7 +20,9 @@ class TrackService:
         self.db = db
         self.storage = storage
         self.max_file_size = 50 * 1024 * 1024  # 50MB for local dev
+        self.max_cover_size = 10 * 1024 * 1024  # 10MB for cover image
         self.allowed_content_types = {"audio/mpeg", "audio/mp3", "audio/wav", "audio/flac"}
+        self.allowed_image_types = {"image/jpeg", "image/png", "image/webp"}
 
     def list_tracks(self, limit: int = 50, offset: int = 0) -> list[Track]:
         limit = min(max(limit, 1), 100)
@@ -72,9 +74,9 @@ class TrackService:
         self,
         *,
         file: UploadFile,
+        cover_file: UploadFile | None,
         title: str,
         description: str | None,
-        cover_url: str | None,
         genre: str | None = None,
         tags: str | None = None,
         ai_provider: str | None = None,
@@ -92,10 +94,20 @@ class TrackService:
 
         self.storage.save_file(storage_key=storage_key, file_bytes=file_bytes)
 
+        cover_storage_key = None
+        if cover_file:
+            cover_bytes = cover_file.file.read()
+            if len(cover_bytes) > self.max_cover_size:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="COVER_TOO_LARGE")
+            if cover_file.content_type and cover_file.content_type not in self.allowed_image_types:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="UNSUPPORTED_COVER_TYPE")
+            cover_storage_key = f"uploads/{owner_user_id}/{upload_id}/cover_{cover_file.filename}"
+            self.storage.save_file(storage_key=cover_storage_key, file_bytes=cover_bytes)
+
         track = Track(
             title=title,
             description=description,
-            cover_url=cover_url,
+            cover_url=cover_storage_key,
             status="ready",
             genre=genre,
             tags=tags,

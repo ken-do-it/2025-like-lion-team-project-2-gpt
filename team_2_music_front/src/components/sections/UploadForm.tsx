@@ -11,7 +11,6 @@ interface UploadFormProps {
   initial?: {
     title?: string;
     description?: string | null;
-    cover_url?: string | null;
     genre?: string | null;
     tags?: string | null;
     ai_provider?: string | null;
@@ -20,7 +19,9 @@ interface UploadFormProps {
 }
 
 const MAX_SIZE_MB = 50;
+const MAX_COVER_MB = 10;
 const ALLOWED_TYPES = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/flac"];
+const ALLOWED_COVER_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const AI_PROVIDERS = ["suno", "mureka", "soundraw", "기타"] as const;
 
 function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
@@ -28,9 +29,11 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
   const [description, setDescription] = useState(initial?.description ?? "");
   const [genre, setGenre] = useState(initial?.genre ?? "");
   const [tags, setTags] = useState(initial?.tags ?? "");
-  const [coverUrl, setCoverUrl] = useState(initial?.cover_url ?? "");
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioName, setAudioName] = useState("");
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverName, setCoverName] = useState("");
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,9 +50,11 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
     setDescription(initial?.description ?? "");
     setGenre(initial?.genre ?? "");
     setTags(initial?.tags ?? "");
-    setCoverUrl(initial?.cover_url ?? "");
     setAiProvider(initial?.ai_provider ?? "");
     setAiModel(initial?.ai_model ?? "");
+    setCoverFile(null);
+    setCoverName("");
+    setCoverPreview(null);
   }, [initial]);
 
   const resolvedProvider = useMemo(() => {
@@ -74,6 +79,19 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
     setAudioFile(file);
     setAudioName(file.name);
     setTitleFromFile(file);
+  };
+
+  const handleCoverChange = (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) {
+      setCoverFile(null);
+      setCoverName("");
+      setCoverPreview(null);
+      return;
+    }
+    const file = fileList[0];
+    setCoverFile(file);
+    setCoverName(file.name);
+    setCoverPreview(URL.createObjectURL(file));
   };
 
   const validateForm = (): boolean => {
@@ -103,6 +121,16 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
         return false;
       }
     }
+    if (coverFile) {
+      if (coverFile.size > MAX_COVER_MB * 1024 * 1024) {
+        setError(`커버 이미지는 ${MAX_COVER_MB}MB 이하여야 합니다.`);
+        return false;
+      }
+      if (coverFile.type && !ALLOWED_COVER_TYPES.includes(coverFile.type)) {
+        setError("커버 이미지는 jpg / png / webp 형식만 허용됩니다.");
+        return false;
+      }
+    }
     return true;
   };
 
@@ -125,7 +153,7 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
         if (description) formData.append("description", description);
         if (genre) formData.append("genre", genre);
         if (tags) formData.append("tags", tags);
-        if (coverUrl) formData.append("cover_url", coverUrl);
+        if (coverFile) formData.append("cover_file", coverFile);
 
         await apiClient.post("/tracks/upload/direct", formData, {
           headers: { ...headers, "Content-Type": "multipart/form-data" },
@@ -136,7 +164,6 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
         await apiClient.patch(`/tracks/${trackId}`, {
           title,
           description,
-          cover_url: coverUrl,
           genre,
           tags,
           ai_provider: resolvedProvider,
@@ -204,9 +231,16 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
           <p className="text-lg font-semibold">앨범 아트</p>
           <label className="flex aspect-square w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-white/20 text-center text-white/70">
             <span className="material-symbols-outlined text-4xl text-primary">add_photo_alternate</span>
-            <span className="text-sm">이미지를 업로드하세요</span>
-            <input type="file" className="hidden" accept="image/*" />
+            <span className="text-sm">이미지를 업로드하세요 (jpg / png / webp, 최대 {MAX_COVER_MB}MB)</span>
+            <input type="file" className="hidden" accept="image/*" onChange={(e) => handleCoverChange(e.target.files)} />
           </label>
+          {coverName && <p className="text-xs text-white/70">선택된 커버: {coverName}</p>}
+          {coverPreview && (
+            <div
+              className="h-32 w-32 rounded-lg bg-cover bg-center border border-white/10"
+              style={{ backgroundImage: `url(${coverPreview})` }}
+            />
+          )}
         </div>
 
         <form className="grid gap-6 text-sm text-white/80" onSubmit={(e) => e.preventDefault()}>
@@ -297,16 +331,6 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
               </div>
             </div>
           </div>
-
-          <label className="grid gap-2">
-            <span className="text-sm font-medium text-white">커버 이미지 URL</span>
-            <input
-              className="rounded-lg border border-white/20 bg-white/5 p-3 placeholder-white/40 focus:border-primary focus:outline-none"
-              placeholder="https://example.com/cover.jpg"
-              value={coverUrl}
-              onChange={(event) => setCoverUrl(event.target.value)}
-            />
-          </label>
 
           <div className="flex justify-end gap-4 pt-2">
             <button type="button" className="rounded-lg border border-white/30 px-6 py-2 font-semibold text-white" onClick={() => navigate(-1)}>

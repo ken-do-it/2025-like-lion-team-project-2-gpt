@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import apiClient from "../lib/api/client";
 
@@ -15,7 +15,7 @@ type PlayerContextType = {
   isPlaying: boolean;
   progress: number;
   duration: number;
-  play: (track: TrackInfo) => void;
+  play: (track: TrackInfo, queue?: TrackInfo[]) => void;
   toggle: () => void;
   seek: (value: number) => void;
   download: () => void;
@@ -25,6 +25,10 @@ type PlayerContextType = {
   setVolume: (value: number) => void;
   muted: boolean;
   toggleMute: () => void;
+  prev: () => void;
+  next: () => void;
+  hasPrev: boolean;
+  hasNext: boolean;
 };
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -32,6 +36,8 @@ const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 export function PlayerProvider({ children }: React.PropsWithChildren) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [current, setCurrent] = useState<TrackInfo | null>(null);
+  const [queue, setQueue] = useState<TrackInfo[]>([]);
+  const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -39,6 +45,9 @@ export function PlayerProvider({ children }: React.PropsWithChildren) {
   const [volume, setVolumeState] = useState(1);
   const [lastVolume, setLastVolume] = useState(1);
   const [muted, setMuted] = useState(false);
+
+  const hasPrev = useMemo(() => currentIndex > 0, [currentIndex]);
+  const hasNext = useMemo(() => currentIndex >= 0 && currentIndex < queue.length - 1, [currentIndex, queue.length]);
 
   useEffect(() => {
     const audio = new Audio();
@@ -48,7 +57,13 @@ export function PlayerProvider({ children }: React.PropsWithChildren) {
       setProgress(audio.currentTime);
       setDuration(audio.duration || 0);
     };
-    const onEnded = () => setIsPlaying(false);
+    const onEnded = () => {
+      if (hasNext) {
+        next();
+      } else {
+        setIsPlaying(false);
+      }
+    };
     audio.addEventListener("timeupdate", onTimeUpdate);
     audio.addEventListener("ended", onEnded);
 
@@ -57,27 +72,58 @@ export function PlayerProvider({ children }: React.PropsWithChildren) {
       audio.removeEventListener("timeupdate", onTimeUpdate);
       audio.removeEventListener("ended", onEnded);
     };
-  }, []);
+  }, [hasNext]);
 
-  const play = (track: TrackInfo) => {
+  const startTrack = (track: TrackInfo, queueList: TrackInfo[], index: number) => {
     if (!audioRef.current) return;
+    setQueue(queueList);
+    setCurrentIndex(index);
     setCurrent(track);
-    setLiked(false); // 기본값; 서버 값 가져오려면 추가 요청 필요
+    setLiked(false);
     audioRef.current.src = track.streamUrl;
+    audioRef.current.currentTime = 0;
+    audioRef.current.load();
     audioRef.current.volume = muted ? 0 : volume;
     audioRef.current
       .play()
       .then(() => setIsPlaying(true))
-      .catch(() => setIsPlaying(false));
+      .catch((err) => {
+        // play()가 pause() 등으로 바로 끊기면 AbortError가 뜨는데, 이는 무시해도 됩니다.
+        if (err?.name === "AbortError") return;
+        setIsPlaying(false);
+        console.error("재생 실패:", err);
+      });
+  };
+
+  const play = (track: TrackInfo, queueList?: TrackInfo[]) => {
+    if (!audioRef.current) return;
+    const list = queueList ?? queue;
+    const idx = list.findIndex((t) => t.id === track.id);
+    if (idx >= 0) {
+      startTrack(list[idx], list, idx);
+    } else {
+      // fallback: single track queue
+      startTrack(track, [track], 0);
+    }
   };
 
   const toggle = () => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || !current) return;
+    // 초기 재생 시 src가 비어 있으면 강제로 설정/로드
+    if (!audioRef.current.src) {
+      audioRef.current.src = current.streamUrl;
+      audioRef.current.currentTime = 0;
+      audioRef.current.load();
+    }
     if (audioRef.current.paused) {
       audioRef.current
         .play()
         .then(() => setIsPlaying(true))
-        .catch(() => setIsPlaying(false));
+        .catch((err) => {
+          if (err?.name === "AbortError") return;
+          setIsPlaying(false);
+          console.error("재생 실패:", err);
+        });
     } else {
       audioRef.current.pause();
       setIsPlaying(false);
@@ -100,19 +146,18 @@ export function PlayerProvider({ children }: React.PropsWithChildren) {
 
   const toggleLike = async () => {
     if (!current) return;
-    const next = !liked;
-    setLiked(next);
+    const nextLiked = !liked;
+    setLiked(nextLiked);
     try {
-      if (next) {
+      if (nextLiked) {
         await apiClient.post(`/interactions/tracks/${current.id}/like`);
       } else {
         await apiClient.delete(`/interactions/tracks/${current.id}/like`);
       }
     } catch (err) {
-      // 실패 시 상태 롤백
-      setLiked(!next);
-      console.error("좋아요 처리 실패", err);
-      alert("좋아요 처리에 실패했습니다.");
+      setLiked(!nextLiked);
+      console.error("좋아요 토글 중 오류", err);
+      alert("좋아요 요청에 실패했습니다.");
     }
   };
 
@@ -135,6 +180,20 @@ export function PlayerProvider({ children }: React.PropsWithChildren) {
     }
   };
 
+  const prev = () => {
+    if (!hasPrev) return;
+    const nextIndex = currentIndex - 1;
+    const nextTrack = queue[nextIndex];
+    startTrack(nextTrack, queue, nextIndex);
+  };
+
+  const next = () => {
+    if (!hasNext) return;
+    const nextIndex = currentIndex + 1;
+    const nextTrack = queue[nextIndex];
+    startTrack(nextTrack, queue, nextIndex);
+  };
+
   return (
     <PlayerContext.Provider
       value={{
@@ -152,6 +211,10 @@ export function PlayerProvider({ children }: React.PropsWithChildren) {
         setVolume,
         muted,
         toggleMute,
+        prev,
+        next,
+        hasPrev,
+        hasNext,
       }}
     >
       {children}
