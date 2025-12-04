@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 
+import apiClient from "../lib/api/client";
+
 type TrackInfo = {
   id: number;
   title: string;
@@ -18,7 +20,7 @@ type PlayerContextType = {
   seek: (value: number) => void;
   download: () => void;
   liked: boolean;
-  toggleLike: () => void;
+  toggleLike: () => Promise<void>;
   volume: number;
   setVolume: (value: number) => void;
   muted: boolean;
@@ -60,18 +62,22 @@ export function PlayerProvider({ children }: React.PropsWithChildren) {
   const play = (track: TrackInfo) => {
     if (!audioRef.current) return;
     setCurrent(track);
-    setLiked(false);
-    if (audioRef.current) {
-      audioRef.current.volume = muted ? 0 : volume;
-    }
+    setLiked(false); // 기본값; 서버 값 가져오려면 추가 요청 필요
     audioRef.current.src = track.streamUrl;
-    audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+    audioRef.current.volume = muted ? 0 : volume;
+    audioRef.current
+      .play()
+      .then(() => setIsPlaying(true))
+      .catch(() => setIsPlaying(false));
   };
 
   const toggle = () => {
     if (!audioRef.current) return;
     if (audioRef.current.paused) {
-      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+      audioRef.current
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch(() => setIsPlaying(false));
     } else {
       audioRef.current.pause();
       setIsPlaying(false);
@@ -92,8 +98,22 @@ export function PlayerProvider({ children }: React.PropsWithChildren) {
     link.click();
   };
 
-  const toggleLike = () => {
-    setLiked((prev) => !prev);
+  const toggleLike = async () => {
+    if (!current) return;
+    const next = !liked;
+    setLiked(next);
+    try {
+      if (next) {
+        await apiClient.post(`/interactions/tracks/${current.id}/like`);
+      } else {
+        await apiClient.delete(`/interactions/tracks/${current.id}/like`);
+      }
+    } catch (err) {
+      // 실패 시 상태 롤백
+      setLiked(!next);
+      console.error("좋아요 처리 실패", err);
+      alert("좋아요 처리에 실패했습니다.");
+    }
   };
 
   const setVolume = (value: number) => {
