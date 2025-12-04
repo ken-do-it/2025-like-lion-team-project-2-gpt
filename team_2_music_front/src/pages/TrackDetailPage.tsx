@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { usePlayer } from "../contexts/PlayerContext";
 import apiClient from "../lib/api/client";
+import { labels } from "../lib/i18n";
 
 type TrackDetail = {
   id: number;
@@ -27,6 +28,7 @@ type Comment = {
 };
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8001/api";
+const fmt = new Intl.NumberFormat("ko-KR");
 
 function TrackDetailPage() {
   const { trackId } = useParams();
@@ -82,8 +84,9 @@ function TrackDetailPage() {
   }, [trackId]);
 
   const streamUrl = track?.audio_url ? `${apiBase}/tracks/${track.id}/stream` : null;
-  const coverStyle = track?.cover_url
-    ? { backgroundImage: `url(${track.cover_url})` }
+  const coverSrc = track?.cover_url ? `${apiBase}/tracks/${track.id}/cover` : null;
+  const coverStyle = coverSrc
+    ? { backgroundImage: `url(${coverSrc})` }
     : { backgroundImage: "linear-gradient(135deg, #2d1b4b, #6b3fa0)" };
 
   const handleSave = async () => {
@@ -130,7 +133,7 @@ function TrackDetailPage() {
       setCommentBody("");
       fetchComments(trackId);
     } catch (err: any) {
-      const msg = err?.response?.data?.message ?? "댓글 등록에 실패했습니다.";
+      const msg = err?.response?.data?.message ?? "댓글 작성에 실패했습니다.";
       setCommentError(msg);
     }
   };
@@ -149,7 +152,7 @@ function TrackDetailPage() {
     );
   }
 
-  if (!track) return <p className="text-sm text-white/60">트랙 정보를 찾을 수 없습니다.</p>;
+  if (!track) return <p className="text-sm text-white/60">트랙을 찾을 수 없습니다.</p>;
 
   return (
     <div className="grid gap-10 lg:grid-cols-[360px_1fr]">
@@ -160,26 +163,41 @@ function TrackDetailPage() {
           <h1 className="text-3xl font-black">{track.title}</h1>
           <p className="text-xs text-white/60">업로드: {new Date(track.created_at).toLocaleString()}</p>
           <p className="text-xs text-white/60">상태: {track.status}</p>
+          <p className="text-xs text-white/60">
+            {labels.plays} {fmt.format((track as any).plays_count ?? 0)} · {labels.likes}{" "}
+            {fmt.format((track as any).likes_count ?? 0)}
+          </p>
         </div>
         <div className="flex flex-col gap-3">
           {streamUrl ? (
             <button
               type="button"
               onClick={() =>
-                player.play({
-                  id: track.id,
-                  title: track.title,
-                  streamUrl,
-                  coverUrl: track.cover_url,
-                  filename: track.title,
-                })
+                player.play(
+                  {
+                    id: track.id,
+                    title: track.title,
+                    streamUrl,
+                    coverUrl: track.cover_url,
+                    filename: track.title,
+                  },
+                  [
+                    {
+                      id: track.id,
+                      title: track.title,
+                      streamUrl,
+                      coverUrl: track.cover_url,
+                      filename: track.title,
+                    },
+                  ],
+                )
               }
               className="rounded-full bg-primary px-4 py-3 text-sm font-semibold text-white shadow hover:bg-primary/90"
             >
               재생
             </button>
           ) : (
-            <p className="text-sm text-white/60">오디오가 없습니다.</p>
+            <p className="text-sm text-white/60">재생할 수 있는 음원이 없습니다.</p>
           )}
         </div>
         <div className="flex gap-3">
@@ -204,7 +222,7 @@ function TrackDetailPage() {
           {track.description ? (
             <p className="mt-2 text-sm text-white/80">{track.description}</p>
           ) : (
-            <p className="mt-2 text-sm text-white/60">설명이 없습니다.</p>
+            <p className="mt-2 text-sm text-white/60">설명 정보가 없습니다.</p>
           )}
         </section>
 
@@ -226,16 +244,57 @@ function TrackDetailPage() {
           ) : (
             <p className="text-sm text-white/60">재생 URL이 없습니다.</p>
           )}
+          {streamUrl && (
+            <div className="mt-2 flex gap-2 text-xs text-white/70">
+              <button
+                type="button"
+                className="rounded-md border border-white/20 px-3 py-1 hover:bg-white/10"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(streamUrl);
+                    alert("재생 링크가 클립보드에 복사되었습니다.");
+                  } catch {
+                    const reason =
+                      window.isSecureContext === false
+                        ? "HTTPS 환경이 아니면 클립보드를 쓸 수 없습니다. 링크를 직접 복사하세요."
+                        : "클립보드 복사에 실패했습니다. 링크를 직접 복사하세요.";
+                    alert(`${reason}\n${streamUrl}`);
+                  }
+                }}
+              >
+                공유하기
+              </button>
+              <button
+                type="button"
+                className="rounded-md border border-white/20 px-3 py-1 hover:bg-white/10"
+                onClick={() => {
+                  const link = document.createElement("a");
+                  link.href = streamUrl;
+                  link.download = `${track.title}.mp3`;
+                  link.click();
+                }}
+              >
+                다운로드
+              </button>
+            </div>
+          )}
         </section>
 
         <section className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-6">
           <h2 className="text-xl font-semibold">댓글</h2>
           <div className="space-y-3">
-            {comments.length === 0 && <p className="text-sm text-white/60">댓글이 없습니다.</p>}
+            {comments.length === 0 && <p className="text-sm text-white/60">작성된 댓글이 없습니다.</p>}
             {comments.map((c) => (
-              <div key={c.id} className="rounded-lg bg-white/5 p-3">
-                <p className="text-sm text-white">{c.body}</p>
-                <p className="text-xs text-white/50 mt-1">{new Date(c.created_at).toLocaleString()}</p>
+              <div key={c.id} className="flex gap-3 rounded-lg bg-white/5 p-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-xs text-white/80">
+                  U{c.user_id}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-white">{c.body}</p>
+                  <p className="text-xs text-white/50 mt-1">
+                    작성자: User {c.user_id} · {new Date(c.created_at).toLocaleString()}
+                  </p>
+                </div>
               </div>
             ))}
           </div>
@@ -253,7 +312,7 @@ function TrackDetailPage() {
               onClick={handleAddComment}
               className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow hover:bg-primary/90"
             >
-              댓글 등록
+              댓글 작성
             </button>
           </div>
         </section>

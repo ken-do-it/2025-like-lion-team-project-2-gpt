@@ -222,6 +222,37 @@ def stream_track(track_id: int, db: Session = Depends(get_db)) -> FileResponse:
     return FileResponse(path=file_path, media_type="audio/mpeg", filename=file_path.name)
 
 
+@router.get(
+    "/{track_id}/cover",
+    summary="Fetch cover image for a track",
+    responses={404: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+def get_cover(track_id: int, db: Session = Depends(get_db)):
+    """Return cover image file or presigned URL redirect."""
+
+    track = _service(db).get_track(track_id)
+    if not track.cover_url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="COVER_NOT_FOUND")
+
+    storage = StorageService()
+    if storage.is_s3_enabled:
+        presigned_url = storage.presign_get(track.cover_url)
+        return RedirectResponse(url=presigned_url, status_code=status.HTTP_302_FOUND)
+
+    file_path = Path(settings.local_storage_path) / track.cover_url
+    if not file_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="COVER_NOT_FOUND")
+
+    media_type = "image/jpeg"
+    suffix = file_path.suffix.lower()
+    if suffix == ".png":
+        media_type = "image/png"
+    elif suffix == ".webp":
+        media_type = "image/webp"
+
+    return FileResponse(path=file_path, media_type=media_type, filename=file_path.name)
+
+
 @router.post(
     "/upload/cleanup",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -250,9 +281,9 @@ def cleanup_expired_uploads(
 )
 async def direct_upload(
     file: UploadFile = File(...),
+    cover_file: UploadFile | None = File(None),
     title: str = Form(...),
     description: str | None = Form(None),
-    cover_url: str | None = Form(None),
     genre: str | None = Form(None),
     tags: str | None = Form(None),
     ai_provider: str | None = Form(None),
@@ -264,9 +295,9 @@ async def direct_upload(
 
     return _service(db).upload_direct(
         file=file,
+        cover_file=cover_file,
         title=title,
         description=description,
-        cover_url=cover_url,
         genre=genre,
         tags=tags,
         ai_provider=ai_provider,
