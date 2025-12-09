@@ -147,7 +147,7 @@ function LibraryPage() {
                                 id: track.id,
                                 title: track.title,
                                 streamUrl,
-                                coverUrl: track.cover_url,
+                                coverUrl: coverUrl,
                                 filename: track.title,
                               }, queue)
                             }
