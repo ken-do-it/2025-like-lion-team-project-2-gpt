@@ -53,12 +53,15 @@ class StorageService:
         url = f"/uploads/{storage_key}"
         return PresignedUpload(url=url, expires_in=ttl, storage_key=storage_key)
 
-    def save_file(self, storage_key: str, file_bytes: bytes) -> str:
-        """Save file to S3 if enabled, otherwise local storage."""
+    def save_file(self, storage_key: str, file_bytes: bytes, content_type: str | None = None) -> str:
+        """Save file to S3 if enabled, otherwise local storage. Always return storage_key."""
 
         if self.is_s3_enabled and self.s3_client:
             try:
-                self.s3_client.put_object(Bucket=self.bucket, Key=storage_key, Body=file_bytes)
+                put_kwargs = {"Bucket": self.bucket, "Key": storage_key, "Body": file_bytes}
+                if content_type:
+                    put_kwargs["ContentType"] = content_type
+                self.s3_client.put_object(**put_kwargs)
                 return storage_key
             except (BotoCoreError, NoCredentialsError) as exc:
                 raise RuntimeError("S3_UPLOAD_FAILED") from exc
@@ -67,7 +70,7 @@ class StorageService:
         target_path = self.base_path / storage_key
         target_path.parent.mkdir(parents=True, exist_ok=True)
         target_path.write_bytes(file_bytes)
-        return str(target_path)
+        return storage_key
 
     def presign_get(self, storage_key: str, expires_in: int | None = None) -> str:
         ttl = expires_in or settings.presign_expiration
