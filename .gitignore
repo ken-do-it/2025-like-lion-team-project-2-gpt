@@ -212,3 +212,69 @@ __marimo__/
 error_connect_postgresql.md
 error_upload_issue.md
 error_vercel_ec2_connect.md
+embedded_cover_setup.md
+front-skill.md
+music_back_deploy_guide.md  
+team_2_music_back/.env
+team_2_music_front/.env 
+team_2_music_front/vite.env
+team_2_music_front/node_modules/
+team_2_music_front/dist/
+team_2_music_front/.vite/
+team_2_music_back/__pycache__/
+team_2_music_back/app/__pycache__/
+team_2_music_back/app/models/__pycache__/
+team_2_music_back/app/api/__pycache__/
+team_2_music_back/app/core/__pycache__/
+team_2_music_back/app/services/__pycache__/
+team_2_music_back/app/tests/__pycache__/
+team_2_music_back/app/tests/test_api/__pycache__/
+team_2_music_back/app/tests/test_models/__pycache__/
+team_2_music_back/app/tests/test_services/__pycache__/
+team_2_music_back/.venv/ 
+team_2_music_back/.pdm-python/
+team_2_music_back/pdm.lock
+team_2_music_back/pdm.toml
+team_2_music_back/.pdm-build/
+team_2_music_back/__marimo__/
+team_2_music_back/marimo/_static/
+team_2_music_back/marimo/_lsp/
+team_2_music_back/.cursorignore
+team_2_music_back/.cursorindexingignore
+# Sensitive environment variables
+team_2_music_back/.env
+team_2_music_front/.env
+# Built frontend files
+team_2_music_front/dist/
+team_2_music_front/.vite/
+team_2_music_front/node_modules/
+# Python virtual environment
+team_2_music_back/.venv/
+team_2_music_back/.pdm-python/
+team_2_music_back/pdm.lock
+team_2_music_back/pdm.toml
+team_2_music_back/.pdm-build/
+# Marimo files
+team_2_music_back/__marimo__/
+team_2_music_back/marimo/_static/
+team_2_music_back/marimo/_lsp/
+# Cursor files
+team_2_music_back/.cursorignore
+
+# Sensitive environment variables
+team_2_music_back/.env
+team_2_music_front/.env
+# Built frontend files
+team_2_music_front/dist/
+team_2_music_front/.vite/
+team_2_music_front/node_modules/
+# Python virtual environment
+team_2_music_back/.venv/
+team_2_music_back/.pdm-python/
+team_2_music_back/pdm.lock
+team_2_music_back/pdm.toml
+team_2_music_back/.pdm-build/
+# Marimo files
+team_2_music_back/__marimo__/
+team_2_music_back/marimo/_static/
+team_2_music_back/marimo/_lsp/

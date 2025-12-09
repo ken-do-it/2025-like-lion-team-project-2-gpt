@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { parseBlob } from "music-metadata-browser";
 import { Buffer } from "buffer";
@@ -25,7 +25,12 @@ const MAX_SIZE_MB = 50;
 const MAX_COVER_MB = 10;
 const ALLOWED_TYPES = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/flac"];
 const ALLOWED_COVER_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const AI_PROVIDERS = ["suno", "mureka", "soundraw", "기타"] as const;
+const AI_PROVIDERS = ["suno", "mureka", "soundraw", "other"] as const;
+
+// music-metadata-browser needs Buffer even in the browser
+if (typeof (globalThis as any).Buffer === "undefined") {
+  (globalThis as any).Buffer = Buffer;
+}
 
 function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
   const [title, setTitle] = useState(initial?.title ?? "");
@@ -48,7 +53,7 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
   const devUserId = import.meta.env.VITE_DEV_USER_ID as string | undefined;
   const navigate = useNavigate();
 
-  // 초기값 로드 (edit 모드에서 기존 커버를 미리보기로 표시)
+  // edit mode: preload server cover
   useEffect(() => {
     setTitle(initial?.title ?? "");
     setDescription(initial?.description ?? "");
@@ -66,7 +71,7 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
     }
   }, [initial, trackId]);
 
-  // object URL 정리
+  // cleanup object URL
   useEffect(() => {
     return () => {
       if (coverPreview?.startsWith("blob:")) {
@@ -76,7 +81,7 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
   }, [coverPreview]);
 
   const resolvedProvider = useMemo(() => {
-    if (aiProvider === "기타") return aiProviderCustom.trim();
+    if (aiProvider === "other") return aiProviderCustom.trim();
     return aiProvider;
   }, [aiProvider, aiProviderCustom]);
 
@@ -100,7 +105,7 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
     setAudioName(file.name);
     setTitleFromFile(file);
 
-    // 내장 커버 추출 (커버를 따로 올리지 않은 경우)
+    // auto extract embedded cover if user did not upload a custom one yet
     if (!coverFile) {
       try {
         const metadata = await parseBlob(file);
@@ -110,7 +115,7 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
           const blob = new Blob([pic.data], { type: mime });
           const url = URL.createObjectURL(blob);
           setCoverPreview(url);
-          setCoverName("내장 커버");
+          setCoverName("embedded cover");
         } else {
           setCoverPreview(null);
           setCoverName("");
@@ -139,38 +144,38 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
 
   const validateForm = (): boolean => {
     if (!title.trim()) {
-      setError("제목을 입력해주세요.");
+      setError("Please enter a title.");
       return false;
     }
     if (!resolvedProvider) {
-      setError("AI 제공자를 선택하거나 입력해주세요.");
+      setError("Select or enter which AI provider you used.");
       return false;
     }
     if (!aiModel.trim()) {
-      setError("사용한 모델명을 입력해주세요.");
+      setError("Enter the model name you used.");
       return false;
     }
     if (mode === "create" || audioFile) {
       if (!audioFile) {
-        setError("음악 파일을 업로드해주세요.");
+        setError("Upload an audio file.");
         return false;
       }
       if (audioFile.size > MAX_SIZE_MB * 1024 * 1024) {
-        setError(`파일 크기는 ${MAX_SIZE_MB}MB 이하여야 합니다.`);
+        setError(`Audio must be ${MAX_SIZE_MB}MB or less.`);
         return false;
       }
       if (audioFile.type && !ALLOWED_TYPES.includes(audioFile.type)) {
-        setError("지원하지 않는 파일 형식입니다. mp3 / wav / flac 형식만 허용됩니다.");
+        setError("Only mp3 / wav / flac are supported.");
         return false;
       }
     }
     if (coverFile) {
       if (coverFile.size > MAX_COVER_MB * 1024 * 1024) {
-        setError(`커버 이미지는 ${MAX_COVER_MB}MB 이하여야 합니다.`);
+        setError(`Cover image must be ${MAX_COVER_MB}MB or less.`);
         return false;
       }
       if (coverFile.type && !ALLOWED_COVER_TYPES.includes(coverFile.type)) {
-        setError("커버 이미지는 jpg / png / webp 형식만 허용됩니다.");
+        setError("Cover image supports jpg / png / webp only.");
         return false;
       }
     }
@@ -201,7 +206,7 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
         await apiClient.post("/tracks/upload/direct", formData, {
           headers: { ...headers, "Content-Type": "multipart/form-data" },
         });
-        setMessage("업로드가 완료되었습니다. 라이브러리로 이동합니다.");
+        setMessage("Upload completed. Redirecting to library.");
         navigate("/library");
       } else if (mode === "edit" && trackId) {
         await apiClient.patch(`/tracks/${trackId}`, {
@@ -211,6 +216,7 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
           tags,
           ai_provider: resolvedProvider,
           ai_model: aiModel,
+          cover_url: coverPreview && !coverFile ? coverPreview : undefined,
         });
         if (audioFile) {
           const audioForm = new FormData();
@@ -219,10 +225,18 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
             headers: { ...headers, "Content-Type": "multipart/form-data" },
           });
         }
-        setMessage("수정이 완료되었습니다.");
+        if (coverFile) {
+          const coverForm = new FormData();
+          coverForm.append("cover_file", coverFile);
+          await apiClient.post(`/tracks/${trackId}/upload/cover`, coverForm, {
+            headers: { ...headers, "Content-Type": "multipart/form-data" },
+          });
+        }
+        setMessage("Saved.");
       }
+      navigate("/library");
     } catch (err: any) {
-      const detail = err?.response?.data?.message ?? "업로드 중 문제가 발생했습니다.";
+      const detail = err?.response?.data?.message ?? "There was a problem while uploading.";
       setError(detail);
     } finally {
       setIsSubmitting(false);
@@ -233,7 +247,7 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
     event.preventDefault();
     setIsDragOver(false);
     if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
-      void handleAudioChange(event.dataTransfer.files);
+      handleAudioChange(event.dataTransfer.files);
     }
   };
 
@@ -253,43 +267,47 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
         }}
         onDrop={onDrop}
       >
-        <p className="text-lg font-semibold">여기에 음악 파일을 드래그 앤 드롭하세요</p>
-        <p className="text-xs text-white/60 mt-1">지원 형식: MP3, WAV, FLAC · 최대 크기: {MAX_SIZE_MB}MB</p>
+        <p className="text-lg font-semibold">Drag & drop your audio file</p>
+        <p className="mt-1 text-xs text-white/60">Supported: MP3, WAV, FLAC · Max {MAX_SIZE_MB}MB</p>
         <div className="mt-4">
           <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow hover:bg-primary/90">
-            파일 선택
-            <input type="file" accept="audio/*" className="hidden" onChange={(event) => void handleAudioChange(event.target.files)} />
+            Select file
+            <input type="file" accept="audio/*" className="hidden" onChange={(event) => handleAudioChange(event.target.files)} />
           </label>
-          {audioName && <p className="mt-2 text-sm text-white/70">선택된 파일: {audioName}</p>}
+          {audioName && <p className="mt-2 text-sm text-white/70">Selected: {audioName}</p>}
         </div>
       </div>
 
       <div className="grid gap-8 rounded-2xl border border-white/10 bg-white/5 p-8 lg:grid-cols-[320px_1fr]">
         <div className="flex flex-col items-center gap-4">
-          <p className="text-lg font-semibold">앨범 아트</p>
+          <p className="text-lg font-semibold">Album Art</p>
           <label className="flex aspect-square w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-white/20 text-center text-white/70">
-            <span className="material-symbols-outlined text-4xl text-primary">add_photo_alternate</span>
-            <span className="text-sm">이미지를 업로드하세요 (jpg / png / webp, 최대 {MAX_COVER_MB}MB)</span>
+            {coverPreview ? (
+              <div className="relative h-full w-full">
+                <div className="h-full w-full rounded-xl bg-cover bg-center" style={{ backgroundImage: `url(${coverPreview})` }} />
+                <span className="absolute bottom-2 left-2 rounded-md bg-black/50 px-2 py-1 text-xs text-white">{coverName || "Preview"}</span>
+              </div>
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-2">
+                <span className="material-symbols-outlined text-4xl text-primary">add_photo_alternate</span>
+                <span className="text-sm">Upload an image (jpg / png / webp, up to {MAX_COVER_MB}MB)</span>
+              </div>
+            )}
             <input type="file" className="hidden" accept="image/*" onChange={(e) => handleCoverChange(e.target.files)} />
           </label>
-          {coverName && <p className="text-xs text-white/70">선택된 커버: {coverName}</p>}
-          <div className="h-32 w-32 overflow-hidden rounded-lg border border-white/10 bg-white/5">
-            {coverPreview ? (
-              <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url(${coverPreview})` }} />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-xs text-white/40">미리보기 없음</div>
-            )}
-          </div>
+          {coverName && coverPreview?.startsWith("blob:") && (
+            <p className="text-xs text-white/60">Selected cover: {coverName}</p>
+          )}
         </div>
 
         <form className="grid gap-6 text-sm text-white/80" onSubmit={(e) => e.preventDefault()}>
           <label className="grid gap-2">
             <span className="text-sm font-medium text-white">
-              제목 <span className="text-primary">*</span>
+              Title <span className="text-primary">*</span>
             </span>
             <input
               className="rounded-lg border border-white/20 bg-white/5 p-3 placeholder-white/40 focus:border-primary focus:outline-none"
-              placeholder="음악의 제목을 입력해주세요"
+              placeholder="Enter a title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               required
@@ -297,11 +315,11 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
           </label>
 
           <label className="grid gap-2">
-            <span className="text-sm font-medium text-white">음악에 대한 설명</span>
+            <span className="text-sm font-medium text-white">Description</span>
             <textarea
               className="rounded-lg border border-white/20 bg-white/5 p-3 placeholder-white/40 focus:border-primary focus:outline-none"
               rows={4}
-              placeholder="음악에 대한 설명을 입력해주세요"
+              placeholder="Add a description"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
             />
@@ -309,19 +327,19 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
 
           <div className="grid gap-6 md:grid-cols-2">
             <label className="grid gap-2">
-              <span className="text-sm font-medium text-white">장르</span>
+              <span className="text-sm font-medium text-white">Genre</span>
               <input
                 className="rounded-lg border border-white/20 bg-white/5 p-3 placeholder-white/40 focus:border-primary focus:outline-none"
-                placeholder="예: Electronic, Lo-fi"
+                placeholder="e.g., Electronic, Lo-fi"
                 value={genre}
                 onChange={(event) => setGenre(event.target.value)}
               />
             </label>
             <label className="grid gap-2">
-              <span className="text-sm font-medium text-white">분위기 / 태그</span>
+              <span className="text-sm font-medium text-white">Mood / Tags</span>
               <input
                 className="rounded-lg border border-white/20 bg-white/5 p-3 placeholder-white/40 focus:border-primary focus:outline-none"
-                placeholder="예: chill, focus, relaxing"
+                placeholder="e.g., chill, focus, relaxing"
                 value={tags}
                 onChange={(event) => setTags(event.target.value)}
               />
@@ -329,10 +347,10 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
           </div>
 
           <div className="grid gap-4 rounded-lg border border-white/10 bg-white/5 p-4">
-            <span className="text-sm font-semibold text-white">AI 정보 (필수)</span>
+            <span className="text-sm font-semibold text-white">AI Info (required)</span>
             <div className="grid gap-3 md:grid-cols-2">
               <div className="flex flex-col gap-2">
-                <span className="text-xs text-white/60">어떤 AI를 사용했나요?</span>
+                <span className="text-xs text-white/60">Which AI did you use?</span>
                 <div className="flex flex-wrap gap-2">
                   {AI_PROVIDERS.map((provider) => (
                     <button
@@ -345,24 +363,24 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
                       }`}
                       onClick={() => setAiProvider(provider)}
                     >
-                      {provider === "기타" ? "기타" : provider.toUpperCase()}
+                      {provider === "other" ? "OTHER" : provider.toUpperCase()}
                     </button>
                   ))}
                 </div>
-                {aiProvider === "기타" && (
+                {aiProvider === "other" && (
                   <input
                     className="rounded-lg border border-white/20 bg-white/5 p-3 placeholder-white/40 focus:border-primary focus:outline-none"
-                    placeholder="직접 입력"
+                    placeholder="Type provider"
                     value={aiProviderCustom}
                     onChange={(e) => setAiProviderCustom(e.target.value)}
                   />
                 )}
               </div>
               <div className="flex flex-col gap-2">
-                <span className="text-xs text-white/60">사용한 모델명을 입력해주세요.</span>
+                <span className="text-xs text-white/60">Enter the model you used.</span>
                 <input
                   className="rounded-lg border border-white/20 bg-white/5 p-3 placeholder-white/40 focus:border-primary focus:outline-none"
-                  placeholder="예: Suno v3, Custom-XL 등"
+                  placeholder="e.g., Suno v3, Custom-XL"
                   value={aiModel}
                   onChange={(e) => setAiModel(e.target.value)}
                   required
@@ -372,8 +390,12 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
           </div>
 
           <div className="flex justify-end gap-4 pt-2">
-            <button type="button" className="rounded-lg border border-white/30 px-6 py-2 font-semibold text-white" onClick={() => navigate(-1)}>
-              취소
+            <button
+              type="button"
+              className="rounded-lg border border-white/30 px-6 py-2 font-semibold text-white"
+              onClick={() => navigate(-1)}
+            >
+              Cancel
             </button>
             <button
               type="button"
@@ -381,7 +403,7 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
               disabled={isSubmitting}
               className="rounded-lg bg-primary px-6 py-2 font-semibold text-white shadow-lg disabled:opacity-60"
             >
-              {isSubmitting ? "처리 중..." : mode === "create" ? "업로드" : "수정"}
+              {isSubmitting ? "Working..." : mode === "create" ? "Upload" : "Save"}
             </button>
           </div>
           {error && <p className="text-sm text-red-400">{error}</p>}
@@ -393,7 +415,3 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
 }
 
 export default UploadForm;
-// music-metadata-browser가 Node Buffer를 기대하므로 브라우저에서 polyfill
-if (typeof globalThis.Buffer === "undefined") {
-  (globalThis as any).Buffer = Buffer;
-}

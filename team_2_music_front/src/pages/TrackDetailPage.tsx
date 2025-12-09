@@ -178,7 +178,7 @@ function TrackDetailPage() {
                     id: track.id,
                     title: track.title,
                     streamUrl,
-                    coverUrl: track.cover_url,
+                    coverUrl: coverSrc ?? undefined,
                     filename: track.title,
                   },
                   [
@@ -186,7 +186,7 @@ function TrackDetailPage() {
                       id: track.id,
                       title: track.title,
                       streamUrl,
-                      coverUrl: track.cover_url,
+                      coverUrl: coverSrc ?? undefined,
                       filename: track.title,
                     },
                   ],
