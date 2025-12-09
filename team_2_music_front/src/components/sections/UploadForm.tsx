@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { parseBlob } from "music-metadata-browser";
 import { useNavigate } from "react-router-dom";
+import { parseBlob } from "music-metadata-browser";
+import { Buffer } from "buffer";
 
 import apiClient from "../../lib/api/client";
 
@@ -16,6 +17,7 @@ interface UploadFormProps {
     tags?: string | null;
     ai_provider?: string | null;
     ai_model?: string | null;
+    cover_url?: string | null;
   };
 }
 
@@ -46,6 +48,7 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
   const devUserId = import.meta.env.VITE_DEV_USER_ID as string | undefined;
   const navigate = useNavigate();
 
+  // 초기값 로드 (edit 모드에서 기존 커버를 미리보기로 표시)
   useEffect(() => {
     setTitle(initial?.title ?? "");
     setDescription(initial?.description ?? "");
@@ -55,8 +58,22 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
     setAiModel(initial?.ai_model ?? "");
     setCoverFile(null);
     setCoverName("");
-    setCoverPreview(null);
-  }, [initial]);
+    if (initial?.cover_url && trackId) {
+      const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
+      setCoverPreview(`${apiBase}/tracks/${trackId}/cover`);
+    } else {
+      setCoverPreview(null);
+    }
+  }, [initial, trackId]);
+
+  // object URL 정리
+  useEffect(() => {
+    return () => {
+      if (coverPreview?.startsWith("blob:")) {
+        URL.revokeObjectURL(coverPreview);
+      }
+    };
+  }, [coverPreview]);
 
   const resolvedProvider = useMemo(() => {
     if (aiProvider === "기타") return aiProviderCustom.trim();
@@ -75,6 +92,7 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
       setAudioFile(null);
       setAudioName("");
       setCoverPreview(null);
+      setCoverName("");
       return;
     }
     const file = fileList[0];
@@ -82,7 +100,7 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
     setAudioName(file.name);
     setTitleFromFile(file);
 
-    // 내장 커버 추출 (사용자가 커버를 따로 올리지 않은 경우에만)
+    // 내장 커버 추출 (커버를 따로 올리지 않은 경우)
     if (!coverFile) {
       try {
         const metadata = await parseBlob(file);
@@ -97,8 +115,8 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
           setCoverPreview(null);
           setCoverName("");
         }
-      } catch {
-        // 추출 실패 시 무시하고 사용자가 직접 커버를 올릴 수 있도록 둠
+      } catch (e) {
+        console.warn("embedded cover parse failed", e);
         setCoverPreview(null);
         setCoverName("");
       }
@@ -115,7 +133,8 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
     const file = fileList[0];
     setCoverFile(file);
     setCoverName(file.name);
-    setCoverPreview(URL.createObjectURL(file));
+    const url = URL.createObjectURL(file);
+    setCoverPreview(url);
   };
 
   const validateForm = (): boolean => {
@@ -254,12 +273,13 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
             <input type="file" className="hidden" accept="image/*" onChange={(e) => handleCoverChange(e.target.files)} />
           </label>
           {coverName && <p className="text-xs text-white/70">선택된 커버: {coverName}</p>}
-          {coverPreview && (
-            <div
-              className="h-32 w-32 rounded-lg bg-cover bg-center border border-white/10"
-              style={{ backgroundImage: `url(${coverPreview})` }}
-            />
-          )}
+          <div className="h-32 w-32 overflow-hidden rounded-lg border border-white/10 bg-white/5">
+            {coverPreview ? (
+              <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url(${coverPreview})` }} />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-xs text-white/40">미리보기 없음</div>
+            )}
+          </div>
         </div>
 
         <form className="grid gap-6 text-sm text-white/80" onSubmit={(e) => e.preventDefault()}>
@@ -373,3 +393,7 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
 }
 
 export default UploadForm;
+// music-metadata-browser가 Node Buffer를 기대하므로 브라우저에서 polyfill
+if (typeof globalThis.Buffer === "undefined") {
+  (globalThis as any).Buffer = Buffer;
+}

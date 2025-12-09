@@ -161,8 +161,9 @@ function ProfilePage() {
                     </thead>
                     <tbody>
                       {filtered.map((track) => {
-                        const coverStyle = track.cover_url
-                          ? { backgroundImage: `url(${track.cover_url})` }
+                        const coverUrl = track.cover_url ? `${apiBase}/tracks/${track.id}/cover` : undefined;
+                        const coverStyle = coverUrl
+                          ? { backgroundImage: `url(${coverUrl})` }
                           : { backgroundImage: "linear-gradient(135deg, #2d1b4b, #6b3fa0)" };
                         const streamUrl = `${apiBase}/tracks/${track.id}/stream`;
                         return (
