@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { parseBlob } from "music-metadata-browser";
 import { useNavigate } from "react-router-dom";
 
 import apiClient from "../../lib/api/client";
@@ -69,16 +70,39 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
     }
   };
 
-  const handleAudioChange = (fileList: FileList | null) => {
+  const handleAudioChange = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) {
       setAudioFile(null);
       setAudioName("");
+      setCoverPreview(null);
       return;
     }
     const file = fileList[0];
     setAudioFile(file);
     setAudioName(file.name);
     setTitleFromFile(file);
+
+    // 내장 커버 추출 (사용자가 커버를 따로 올리지 않은 경우에만)
+    if (!coverFile) {
+      try {
+        const metadata = await parseBlob(file);
+        const pic = metadata.common.picture?.[0];
+        if (pic?.data?.length) {
+          const mime = pic.type || pic.format || "image/jpeg";
+          const blob = new Blob([pic.data], { type: mime });
+          const url = URL.createObjectURL(blob);
+          setCoverPreview(url);
+          setCoverName("내장 커버");
+        } else {
+          setCoverPreview(null);
+          setCoverName("");
+        }
+      } catch {
+        // 추출 실패 시 무시하고 사용자가 직접 커버를 올릴 수 있도록 둠
+        setCoverPreview(null);
+        setCoverName("");
+      }
+    }
   };
 
   const handleCoverChange = (fileList: FileList | null) => {
@@ -190,7 +214,7 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
     event.preventDefault();
     setIsDragOver(false);
     if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
-      handleAudioChange(event.dataTransfer.files);
+      void handleAudioChange(event.dataTransfer.files);
     }
   };
 
@@ -215,12 +239,7 @@ function UploadForm({ mode = "create", trackId, initial }: UploadFormProps) {
         <div className="mt-4">
           <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow hover:bg-primary/90">
             파일 선택
-            <input
-              type="file"
-              accept="audio/*"
-              className="hidden"
-              onChange={(event) => handleAudioChange(event.target.files)}
-            />
+            <input type="file" accept="audio/*" className="hidden" onChange={(event) => void handleAudioChange(event.target.files)} />
           </label>
           {audioName && <p className="mt-2 text-sm text-white/70">선택된 파일: {audioName}</p>}
         </div>
