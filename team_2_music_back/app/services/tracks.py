@@ -1,9 +1,11 @@
 """Track-related service functions."""
 
 from datetime import datetime
+from io import BytesIO
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
+from mutagen import File as MutagenFile
 
 from app.models.track import Track
 from app.models.upload_session import UploadSession
@@ -103,6 +105,19 @@ class TrackService:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="UNSUPPORTED_COVER_TYPE")
             cover_storage_key = f"uploads/{owner_user_id}/{upload_id}/cover_{cover_file.filename}"
             self.storage.save_file(storage_key=cover_storage_key, file_bytes=cover_bytes)
+        else:
+            extracted = self._extract_embedded_cover(file_bytes)
+            if extracted:
+                cover_bytes, cover_mime = extracted
+                if len(cover_bytes) <= self.max_cover_size:
+                    # build filename from mime
+                    ext = ".jpg"
+                    if cover_mime == "image/png":
+                        ext = ".png"
+                    elif cover_mime == "image/webp":
+                        ext = ".webp"
+                    cover_storage_key = f"uploads/{owner_user_id}/{upload_id}/cover_extracted{ext}"
+                    self.storage.save_file(storage_key=cover_storage_key, file_bytes=cover_bytes)
 
         track = Track(
             title=title,
@@ -267,3 +282,31 @@ class TrackService:
         self.db.commit()
         self.db.refresh(track)
         return track
+
+    def _extract_embedded_cover(self, file_bytes: bytes) -> tuple[bytes, str] | None:
+        """Extract embedded cover art from audio bytes (MP3/FLAC/etc)."""
+
+        try:
+            audio = MutagenFile(BytesIO(file_bytes))
+        except Exception:
+            return None
+        if not audio:
+            return None
+
+        # ID3 / MP3: look for APIC frames
+        if getattr(audio, "tags", None):
+            for frame in audio.tags.values():
+                data = getattr(frame, "data", None)
+                mime = getattr(frame, "mime", None)
+                if data and mime:
+                    return data, mime
+
+        # FLAC/others: pictures attribute
+        pictures = getattr(audio, "pictures", [])
+        for pic in pictures:
+            data = getattr(pic, "data", None)
+            mime = getattr(pic, "mime", None)
+            if data and mime:
+                return data, mime
+
+        return None
