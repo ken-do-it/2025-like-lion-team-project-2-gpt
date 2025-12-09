@@ -117,7 +117,9 @@ class TrackService:
                     elif cover_mime == "image/webp":
                         ext = ".webp"
                     cover_storage_key = f"uploads/{owner_user_id}/{upload_id}/cover_extracted{ext}"
-                    self.storage.save_file(storage_key=cover_storage_key, file_bytes=cover_bytes)
+                    self.storage.save_file(
+                        storage_key=cover_storage_key, file_bytes=cover_bytes, content_type=cover_mime
+                    )
 
         track = Track(
             title=title,
