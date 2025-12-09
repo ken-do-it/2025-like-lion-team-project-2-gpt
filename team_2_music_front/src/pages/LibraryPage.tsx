@@ -103,6 +103,7 @@ function LibraryPage() {
         <div className="space-y-3">
           {tracks.map((track) => {
             const streamUrl = track.audio_url ? `${apiBase}/tracks/${track.id}/stream` : null;
+            const coverUrl = track.cover_url ? `${apiBase}/tracks/${track.id}/cover` : undefined;
             const isOpen = menuOpenId === track.id;
             const queue = tracks
               .filter((t) => Boolean(t.audio_url))
@@ -119,8 +120,8 @@ function LibraryPage() {
                   <div
                     className="h-16 w-16 flex-shrink-0 rounded-md bg-cover bg-center bg-white/10"
                     style={{
-                      backgroundImage: track.cover_url
-                        ? `url(${track.cover_url})`
+                      backgroundImage: coverUrl
+                        ? `url(${coverUrl})`
                         : "linear-gradient(135deg, #2d1b4b, #6b3fa0)",
                     }}
                   />
