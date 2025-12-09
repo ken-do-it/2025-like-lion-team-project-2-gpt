@@ -94,7 +94,7 @@ class TrackService:
         if file.content_type and file.content_type not in self.allowed_content_types:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="UNSUPPORTED_MEDIA_TYPE")
 
-        self.storage.save_file(storage_key=storage_key, file_bytes=file_bytes)
+        self.storage.save_file(storage_key=storage_key, file_bytes=file_bytes, content_type=file.content_type)
 
         cover_storage_key = None
         if cover_file:
@@ -104,7 +104,7 @@ class TrackService:
             if cover_file.content_type and cover_file.content_type not in self.allowed_image_types:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="UNSUPPORTED_COVER_TYPE")
             cover_storage_key = f"uploads/{owner_user_id}/{upload_id}/cover_{cover_file.filename}"
-            self.storage.save_file(storage_key=cover_storage_key, file_bytes=cover_bytes)
+            self.storage.save_file(storage_key=cover_storage_key, file_bytes=cover_bytes, content_type=cover_file.content_type)
         else:
             extracted = self._extract_embedded_cover(file_bytes)
             if extracted:
@@ -117,9 +117,7 @@ class TrackService:
                     elif cover_mime == "image/webp":
                         ext = ".webp"
                     cover_storage_key = f"uploads/{owner_user_id}/{upload_id}/cover_extracted{ext}"
-                    self.storage.save_file(
-                        storage_key=cover_storage_key, file_bytes=cover_bytes, content_type=cover_mime
-                    )
+                    self.storage.save_file(storage_key=cover_storage_key, file_bytes=cover_bytes, content_type=cover_mime)
 
         track = Track(
             title=title,
