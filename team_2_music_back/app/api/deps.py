@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.core.auth import AuthError, decode_jwt
 from app.core.jwt import JWKSClient
 from app.db.session import SessionLocal
+from app.models.user_profile import UserProfile
 
 
 @dataclass
@@ -35,6 +36,7 @@ def get_db() -> Generator[Session, None, None]:
 
 async def get_current_user(
     request: Request,
+    db: Session = Depends(get_db),
     authorization: str | None = Header(default=None, convert_underscores=True),
     x_user_id: int | None = Header(default=None, convert_underscores=True),
 ) -> CurrentUser:
@@ -61,7 +63,9 @@ async def get_current_user(
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_SUB") from None
 
         # Optional remote user verification against auth server.
-        user_id = await _verify_remote_user(token, user_id)
+        user_info = await _verify_remote_user(token, user_id)
+        user_id = user_info["id"]
+        _ensure_local_user_profile(db, user_info)
 
         return CurrentUser(user_id=user_id, claims=claims)
 
@@ -75,11 +79,11 @@ async def get_current_user(
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="UNAUTHORIZED")
 
 
-async def _verify_remote_user(token: str, user_id: int) -> int:
-    """Validate user against auth server; do not persist locally."""
+async def _verify_remote_user(token: str, user_id: int) -> dict[str, Any]:
+    """Validate user against auth server; return user info."""
 
     if not settings.auth_userinfo_url:
-        return user_id
+        return {"id": user_id}
 
     async with httpx.AsyncClient(timeout=settings.auth_timeout_seconds) as client:
         resp = await client.get(
@@ -94,4 +98,35 @@ async def _verify_remote_user(token: str, user_id: int) -> int:
     if remote_id is None or int(remote_id) != user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="AUTH_USER_MISMATCH")
 
-    return user_id
+    data["id"] = int(remote_id)
+    return data
+
+
+def _ensure_local_user_profile(db: Session, user_info: dict) -> None:
+    """Upsert a local user_profile row for FK integrity."""
+
+    user_id = user_info["id"]
+    display_name = user_info.get("nickname") or user_info.get("email") or f"user-{user_id}"
+    avatar_url = user_info.get("avatar")
+    bio = user_info.get("bio")
+    is_active = 1 if user_info.get("is_active") is None else int(bool(user_info.get("is_active")))
+
+    user = db.get(UserProfile, user_id)
+    if not user:
+        user = UserProfile(
+            id=user_id,
+            auth_user_id=str(user_id),
+            display_name=display_name,
+            avatar_url=avatar_url,
+            bio=bio,
+            is_active=is_active,
+        )
+        db.add(user)
+    else:
+        user.display_name = display_name
+        user.avatar_url = avatar_url
+        user.bio = bio
+        user.is_active = is_active
+
+    db.commit()
+    return None
