@@ -19,7 +19,8 @@ class JWKSClient:
 
     def __init__(self, redis_client: Redis | None = None) -> None:
         self._redis = redis_client
-        self._jwks_url = settings.jwks_url
+        # httpx expects a string URL; Pydantic's AnyHttpUrl needs to be cast.
+        self._jwks_url = str(settings.jwks_url) if settings.jwks_url else None
         self._ttl = settings.jwks_cache_ttl
         self._local_cache: tuple[float, dict[str, Any]] | None = None
 
