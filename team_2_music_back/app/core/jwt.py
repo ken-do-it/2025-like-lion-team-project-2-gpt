@@ -25,12 +25,20 @@ class JWKSClient:
         self._local_cache: tuple[float, dict[str, Any]] | None = None
 
     async def warm(self) -> None:
-        """Prime the cache so the first request is fast."""
+        """Prime the cache so the first request is fast.
+
+        Failures here should not crash the app; they will be retried on demand.
+        """
 
         if not self._jwks_url:
             return
 
-        await self.get_jwks()
+        try:
+            await self.get_jwks()
+        except Exception as exc:  # noqa: BLE001
+            import logging
+
+            logging.getLogger(__name__).warning("JWKS warmup failed: %s", exc)
 
     async def get_jwks(self) -> dict[str, Any]:
         """Retrieve JWKS using Redis and in-process caching."""
