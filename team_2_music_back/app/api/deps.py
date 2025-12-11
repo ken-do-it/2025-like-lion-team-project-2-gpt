@@ -13,7 +13,6 @@ from app.core.config import settings
 from app.core.auth import AuthError, decode_jwt
 from app.core.jwt import JWKSClient
 from app.db.session import SessionLocal
-from app.models.user_profile import UserProfile
 
 
 @dataclass
@@ -62,7 +61,7 @@ async def get_current_user(
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_SUB") from None
 
         # Optional remote user sync: confirm user exists in auth server and upsert locally.
-        user_id = await _ensure_user_profile(db, token, user_id)
+        user_id = await _verify_remote_user(token, user_id)
 
         return CurrentUser(user_id=user_id, claims=claims)
 
@@ -77,7 +76,7 @@ async def get_current_user(
 
 
 async def _ensure_user_profile(db: Session, token: str, user_id: int) -> int:
-    """Validate user against auth server and upsert into local user_profiles."""
+    """Validate user against auth server; do not persist locally."""
 
     if not settings.auth_userinfo_url:
         return user_id
@@ -95,26 +94,4 @@ async def _ensure_user_profile(db: Session, token: str, user_id: int) -> int:
     if remote_id is None or int(remote_id) != user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="AUTH_USER_MISMATCH")
 
-    display_name = data.get("nickname") or data.get("email") or f"user-{user_id}"
-    avatar_url = data.get("avatar")
-    bio = data.get("bio")
-
-    user = db.get(UserProfile, user_id)
-    if not user:
-        user = UserProfile(
-            id=user_id,
-            auth_user_id=str(user_id),
-            display_name=display_name,
-            avatar_url=avatar_url,
-            bio=bio,
-            is_active=1,
-        )
-        db.add(user)
-    else:
-        # lightweight refresh of profile fields
-        user.display_name = display_name
-        user.avatar_url = avatar_url
-        user.bio = bio
-
-    db.commit()
     return user_id
