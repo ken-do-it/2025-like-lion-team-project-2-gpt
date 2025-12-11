@@ -34,3 +34,11 @@ class Track(Base):
     playlist_links = relationship("PlaylistTrack", back_populates="track", cascade="all, delete-orphan")
     likes = relationship("Like", back_populates="track", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="track", cascade="all, delete-orphan")
+
+    @property
+    def owner_display_name(self) -> str | None:
+        """Convenience accessor for uploader display name."""
+
+        if getattr(self, "owner", None):
+            return self.owner.display_name
+        return None

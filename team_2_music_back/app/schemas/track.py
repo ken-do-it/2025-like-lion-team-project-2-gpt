@@ -34,6 +34,7 @@ class TrackUpdate(BaseModel):
 class TrackRead(TrackBase):
     id: int
     owner_user_id: int
+    owner_display_name: str | None = None
     status: str
     audio_url: str | None = None
     genre: str | None = None
