@@ -60,7 +60,7 @@ async def get_current_user(
         except ValueError:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_SUB") from None
 
-        # Optional remote user sync: confirm user exists in auth server and upsert locally.
+        # Optional remote user verification against auth server.
         user_id = await _verify_remote_user(token, user_id)
 
         return CurrentUser(user_id=user_id, claims=claims)
@@ -75,7 +75,7 @@ async def get_current_user(
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="UNAUTHORIZED")
 
 
-async def _ensure_user_profile(db: Session, token: str, user_id: int) -> int:
+async def _verify_remote_user(token: str, user_id: int) -> int:
     """Validate user against auth server; do not persist locally."""
 
     if not settings.auth_userinfo_url:
