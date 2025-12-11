@@ -48,7 +48,8 @@ async def get_current_user(
         except AuthError as exc:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=exc.code) from exc
 
-        sub = claims.get("sub")
+        # Accept sub (preferred) or user_id in HS256 tokens.
+        sub = claims.get("sub") or claims.get("user_id")
         if not sub:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_TOKEN")
 
