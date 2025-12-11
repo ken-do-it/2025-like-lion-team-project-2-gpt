@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     jwks_audience: str | None = None
     jwks_cache_ttl: int = 3600
     allow_header_auth: bool = True
+    jwt_secret: str | None = None
+    jwt_public_key: str | None = None
 
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"]
 
