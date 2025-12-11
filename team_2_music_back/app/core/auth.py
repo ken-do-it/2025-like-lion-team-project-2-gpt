@@ -7,6 +7,7 @@ import time
 from dataclasses import dataclass
 
 from jose import jwt, jwk
+from jose.exceptions import JWTError
 from jose.utils import base64url_decode
 
 from app.core.config import settings
@@ -32,6 +33,40 @@ async def decode_jwt(token: str, jwks_client: JWKSClient) -> dict:
 
     Minimal verification: signature (kid lookup), exp, and optional audience from settings.
     """
+
+    audience = settings.project_name if settings.project_name else None
+
+    # If a symmetric secret is configured, verify HS256 tokens with it.
+    if settings.jwt_secret:
+        try:
+            if audience:
+                claims = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"], audience=audience)
+            else:
+                claims = jwt.decode(
+                    token,
+                    settings.jwt_secret,
+                    algorithms=["HS256"],
+                    options={"verify_aud": False},
+                )
+        except JWTError as exc:
+            raise AuthError(code="INVALID_TOKEN", message="Failed to verify token") from exc
+        return claims
+
+    # If a static public key is configured, use it directly.
+    if settings.jwt_public_key:
+        try:
+            if audience:
+                claims = jwt.decode(token, settings.jwt_public_key, algorithms=["RS256"], audience=audience)
+            else:
+                claims = jwt.decode(
+                    token,
+                    settings.jwt_public_key,
+                    algorithms=["RS256"],
+                    options={"verify_aud": False},
+                )
+        except JWTError as exc:
+            raise AuthError(code="INVALID_TOKEN", message="Failed to verify token") from exc
+        return claims
 
     try:
         header = jwt.get_unverified_header(token)
@@ -68,7 +103,6 @@ async def decode_jwt(token: str, jwks_client: JWKSClient) -> dict:
     if exp is None or time.time() > exp:
         raise AuthError(code="TOKEN_EXPIRED", message="Token expired")
 
-    audience = settings.project_name if settings.project_name else None
     token_aud = claims.get("aud")
     if audience and token_aud and audience not in (token_aud if isinstance(token_aud, list) else [token_aud]):
         raise AuthError(code="INVALID_AUDIENCE", message="Invalid audience")
